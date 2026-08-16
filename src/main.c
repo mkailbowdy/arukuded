@@ -1,6 +1,9 @@
 #include "raylib.h"
 #include "raymath.h"
 #include "resource_dir.h" // utility header for SearchAndSetResourceDir
+#include "stdio.h"
+#include "string.h"
+#include <tmx.h>
 
 #define RAYLIB_TMX_IMPLEMENTATION
 #include "raylib-tmx.h"
@@ -12,11 +15,12 @@ typedef enum {
 
 typedef struct Player {
     Vector2 position;
-    Vector2 size;
+    Vector2 spriteSize;
     Vector2 speed;
     Rectangle bounds;
     Direction direction;
 } Player;
+
 typedef struct Zombie {
     Vector2 position;
     Vector2 size;
@@ -25,8 +29,9 @@ typedef struct Zombie {
     Direction direction;
 } Zombie;
 
-// frameCount is the number of pictures in the spritesheet. framesSpeed is the
-// number of frames(i.e. pictures) showns per second
+//----------------------------------------------------------------------------------
+// Helper Functions
+//----------------------------------------------------------------------------------
 void animatePixels(int *framesCounter, int *currentFrame, Rectangle *frameRec, Texture2D spritesheet, int frameCount, int framesSpeed) {
     if (*framesCounter >= (60 / framesSpeed)) {
         *framesCounter = 0;
@@ -40,31 +45,55 @@ void animatePixels(int *framesCounter, int *currentFrame, Rectangle *frameRec, T
     }
     return;
 }
+void UpdatePlayerBounds(Player *player) { player->bounds = (Rectangle){player->position.x + 7, player->position.y + 52, 14, 12}; }
+bool PlayerCollides(Rectangle bounds, tmx_layer *collisionLayer) {
+    if (collisionLayer == NULL || collisionLayer->type != L_OBJGR) {
+        return false;
+    }
+
+    tmx_object *object = collisionLayer->content.objgr->head;
+
+    while (object != NULL) {
+        if (object->obj_type == OT_SQUARE) {
+            RaylibTMXCollision collision = HandleTMXCollision(object);
+
+            if (CheckCollisionRecs(bounds, collision.rect)) {
+                return true;
+            }
+        }
+
+        object = object->next;
+    }
+
+    return false;
+}
+
+//----------------------------------------------------------------------------------
+// Main function
+//----------------------------------------------------------------------------------
 
 int main(int argc, char *argv[]) {
+    //----------------------------------------------------------------------------------
     // Initialization
-    //--------------------------------------------------------------------------------------
-    // Make sure we're running in the correct directory.
-    ChangeDirectory(GetDirectoryPath(argv[0]));
-    SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI); // Tell the window to use vsync and work on high DPI displays
-    SearchAndSetResourceDir("resources");                  // Utility function from resource_dir.h to find the resources folder
+    //----------------------------------------------------------------------------------
 
-    // Create the window and OpenGL context
+    ChangeDirectory(GetDirectoryPath(argv[0]));
+    SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
+    SearchAndSetResourceDir("resources");
+
     const int screenWidth = 960;
     const int screenHeight = 640;
     InitWindow(screenWidth, screenHeight, "Za Aruku Deddo");
 
-    // Load a texture from the resources directory
     Texture2D playerWalk = LoadTexture("Raider_1/Walk.png");
-    Image playerWalkOrigin = LoadImage("Raider_1/Walk.png");
-    ImageFormat(&playerWalkOrigin, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
-    ImageFlipHorizontal(&playerWalkOrigin);
-    Rectangle playerWalkFrameRec = {0.0f, 0.0f, (float)playerWalk.width / 8, (float)playerWalk.height};
+    float playerFrameWidth = (float)playerWalk.width / 8.0f; // 28
+    float playerFrameHeight = (float)playerWalk.height;      // 67
+    Rectangle playerWalkFrameRec = {0.0f, 0.0f, playerFrameWidth, playerFrameHeight};
     Player player = {0};
     player.position = (Vector2){0.0f, 200.0f};
-    player.size = (Vector2){(float)playerWalk.width / 8.0f, (float)playerWalk.height};
-    player.speed = (Vector2){50.0f, 50.0f};
-    player.bounds = (Rectangle){player.position.x, player.position.y, player.size.x, player.size.y};
+    player.spriteSize = (Vector2){playerFrameWidth, playerFrameHeight};
+    player.speed = (Vector2){250.0f, 250.0f};
+    player.bounds = (Rectangle){player.position.x, player.position.y, player.spriteSize.x, player.spriteSize.y};
     player.direction = RIGHT;
 
     Texture2D wildZombieWalk = LoadTexture("wild_zombie/Walk.png");
@@ -84,9 +113,19 @@ int main(int argc, char *argv[]) {
 
     tmx_map *map = LoadTMX(argc > 1 ? argv[1] : "tilemaps/village/level1.tmx");
     Vector2 position = {0, 0};
-    // Game Loop
+
+    tmx_layer *groundLayer = tmx_find_layer_by_name(map, "Ground");
+    tmx_layer *collisionLayer = tmx_find_layer_by_name(map, "Collisions");
+    tmx_layer *objectsLayer = tmx_find_layer_by_name(map, "Buildings");
+
+    //----------------------------------------------------------------------------------
+    // Gameplay Loop
+    //----------------------------------------------------------------------------------
     while (!WindowShouldClose()) {
+
+        //----------------------------------------------------------------------------------
         // Update
+        //----------------------------------------------------------------------------------
         float deltaTime = GetFrameTime();
         playerFramesCounter++;
         wildZombieFramesCounter++;
@@ -108,9 +147,40 @@ int main(int argc, char *argv[]) {
         }
         if (direction.x != 0 || direction.y != 0) {
             direction = Vector2Normalize(direction);
-            player.position.x += direction.x * player.speed.x * deltaTime;
-            player.position.y += direction.y * player.speed.y * deltaTime;
+
+            float moveX = direction.x * player.speed.x * deltaTime;
+            float moveY = direction.y * player.speed.y * deltaTime;
+
+            // Try X movement
+            player.position.x += moveX;
+
+            UpdatePlayerBounds(&player);
+
+            if (PlayerCollides(player.bounds, collisionLayer)) {
+                player.position.x -= moveX;
+            }
+
+            // Try Y movement
+            player.position.y += moveY;
+
+            UpdatePlayerBounds(&player);
+
+            if (PlayerCollides(player.bounds, collisionLayer)) {
+                player.position.y -= moveY;
+            }
+
+            UpdatePlayerBounds(&player);
         }
+        switch (player.direction) {
+        case RIGHT:
+            playerWalkFrameRec.width = (float)playerWalk.width / 8;
+            break;
+        case LEFT:
+            playerWalkFrameRec.width = -(float)playerWalk.width / 8;
+            break;
+        }
+
+        UpdatePlayerBounds(&player);
 
         if (IsKeyUp(KEY_RIGHT) && IsKeyUp(KEY_UP) && IsKeyUp(KEY_LEFT) && IsKeyUp(KEY_DOWN))
             playerCurrentFrame = 0;
@@ -120,26 +190,46 @@ int main(int argc, char *argv[]) {
 
         wildZombie.position.x += wildZombie.speed.x * deltaTime;
 
+        //----------------------------------------------------------------------------------
         // Draw
+        //----------------------------------------------------------------------------------
         BeginDrawing();
         ClearBackground(RAYWHITE);
-        DrawTMX(map, position.x, position.y, WHITE, 1.0);
-        switch (player.direction) {
-        case RIGHT:
-            playerWalkFrameRec.width = (float)playerWalk.width / 8;
-            break;
-        case LEFT:
-            playerWalkFrameRec.width = -(float)playerWalk.width / 8;
-            break;
+
+        // 1. Draw all map layers (tiles, building objects, images) except "Foreground"
+        tmx_layer *layer = map->ly_head;
+        while (layer != NULL) {
+            if (layer->visible && strcmp(layer->name, "Foreground") != 0) {
+                DrawTMXLayer(map, layer, position.x, position.y, WHITE, 1.0f);
+            }
+            layer = layer->next;
         }
+
+        // 2. Draw Entities (Player & Zombie)
         DrawTextureRec(playerWalk, playerWalkFrameRec, player.position, WHITE);
         DrawTextureRec(wildZombieWalk, wildZombieWalkFrameRec, wildZombie.position, WHITE);
+
+        // 3. Debug collision bounds (RED)
+        if (collisionLayer != NULL && collisionLayer->type == L_OBJGR) {
+            tmx_object *obj = collisionLayer->content.objgr->head;
+            while (obj != NULL) {
+                if (obj->obj_type == OT_SQUARE) {
+                    DrawRectangleLines(obj->x, obj->y, obj->width, obj->height, RED);
+                }
+                obj = obj->next;
+            }
+        }
+        DrawRectangleLinesEx(player.bounds, 1.0, GREEN);
+
         EndDrawing();
     }
 
-    // Unload our textures so it can be cleaned up. Destroy the window and cleanup the OpenGL context
+    //----------------------------------------------------------------------------------
+    // Cleaup
+    //----------------------------------------------------------------------------------
     UnloadTexture(playerWalk);
     UnloadTexture(wildZombieWalk);
+    UnloadTMX(map);
     CloseWindow();
     return 0;
 }
