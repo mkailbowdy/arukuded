@@ -196,10 +196,10 @@ int main(int argc, char *argv[]) {
         BeginDrawing();
         ClearBackground(RAYWHITE);
 
-        // 1. Draw all map layers (tiles, building objects, images) except "Foreground"
+        // 1. Draw all map layers (tiles, building objects, images) except "Collisions"
         tmx_layer *layer = map->ly_head;
         while (layer != NULL) {
-            if (layer->visible && strcmp(layer->name, "Foreground") != 0) {
+            if (layer->visible && strcmp(layer->name, "Collisions") != 0) {
                 DrawTMXLayer(map, layer, position.x, position.y, WHITE, 1.0f);
             }
             layer = layer->next;
