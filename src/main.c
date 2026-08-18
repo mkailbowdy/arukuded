@@ -1,7 +1,6 @@
 #include "raylib.h"
 #include "raymath.h"
 #include "resource_dir.h" // utility header for SearchAndSetResourceDir
-#include "stdio.h"
 #include "string.h"
 #include <tmx.h>
 
@@ -67,6 +66,83 @@ bool PlayerCollides(Rectangle bounds, tmx_layer *collisionLayer) {
 
     return false;
 }
+int compare(const void *a, const void *b) {
+    const tmx_object *objA = *(const tmx_object **)a;
+    const tmx_object *objB = *(const tmx_object **)b;
+
+    if (objA->y < objB->y)
+        return -1;
+
+    if (objA->y > objB->y)
+        return 1;
+
+    return 0;
+}
+void sortByY(tmx_map *map, tmx_layer *objectsLayer, Player *player, Texture2D playerWalk, Rectangle playerWalkFrameRec) {
+    int count = 0;
+
+    // Count buildings
+    tmx_object *object = objectsLayer->content.objgr->head;
+
+    while (object != NULL) {
+        count++;
+        object = object->next;
+    }
+
+    // Make array
+    tmx_object **collection = malloc(count * sizeof(tmx_object *));
+
+    if (collection == NULL)
+        return;
+
+    // Fill array
+    object = objectsLayer->content.objgr->head;
+    int j = 0;
+
+    while (object != NULL) {
+        collection[j] = object;
+        j++;
+        object = object->next;
+    }
+
+    // Sort buildings by Y
+    qsort(collection, count, sizeof(tmx_object *), compare);
+
+    bool playerDrawn = false;
+    float playerY = player->position.y + player->spriteSize.y;
+
+    for (int i = 0; i < count; i++) {
+        object = collection[i];
+
+        // Draw player when we reach an object below him
+        if (!playerDrawn && playerY < object->y) {
+            DrawTextureRec(playerWalk, playerWalkFrameRec, player->position, WHITE);
+
+            playerDrawn = true;
+        }
+
+        // Draw this building
+        if (object->obj_type == OT_TILE) {
+            int baseGid = object->content.gid;
+            int gid = baseGid & TMX_FLIP_BITS_REMOVAL;
+
+            tmx_tile *tile = map->tiles[gid];
+
+            if (tile != NULL) {
+                Rectangle dest = {object->x, object->y, object->width, object->height};
+
+                DrawTMXObjectTile(tile, baseGid, dest, object->rotation, WHITE);
+            }
+        }
+    }
+
+    // Player is below all buildings
+    if (!playerDrawn) {
+        DrawTextureRec(playerWalk, playerWalkFrameRec, player->position, WHITE);
+    }
+
+    free(collection);
+}
 
 //----------------------------------------------------------------------------------
 // Main function
@@ -89,6 +165,7 @@ int main(int argc, char *argv[]) {
     float playerFrameWidth = (float)playerWalk.width / 8.0f; // 28
     float playerFrameHeight = (float)playerWalk.height;      // 67
     Rectangle playerWalkFrameRec = {0.0f, 0.0f, playerFrameWidth, playerFrameHeight};
+
     Player player = {0};
     player.position = (Vector2){0.0f, 200.0f};
     player.spriteSize = (Vector2){playerFrameWidth, playerFrameHeight};
@@ -199,16 +276,18 @@ int main(int argc, char *argv[]) {
         // 1. Draw all map layers (tiles, building objects, images) except "Collisions"
         tmx_layer *layer = map->ly_head;
         while (layer != NULL) {
-            if (layer->visible && strcmp(layer->name, "Collisions") != 0) {
+            if (layer->visible && strcmp(layer->name, "Collisions") != 0 && strcmp(layer->name, "Buildings") != 0) {
                 DrawTMXLayer(map, layer, position.x, position.y, WHITE, 1.0f);
             }
             layer = layer->next;
         }
 
         // 2. Draw Entities (Player & Zombie)
-        DrawTextureRec(playerWalk, playerWalkFrameRec, player.position, WHITE);
-        DrawTextureRec(wildZombieWalk, wildZombieWalkFrameRec, wildZombie.position, WHITE);
+        // 2. Draw buildings + player in Y order
+        sortByY(map, objectsLayer, &player, playerWalk, playerWalkFrameRec);
 
+        // Zombie
+        DrawTextureRec(wildZombieWalk, wildZombieWalkFrameRec, wildZombie.position, WHITE);
         // 3. Debug collision bounds (RED)
         if (collisionLayer != NULL && collisionLayer->type == L_OBJGR) {
             tmx_object *obj = collisionLayer->content.objgr->head;

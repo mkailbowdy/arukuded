@@ -168,6 +168,7 @@ startproject(workspaceName)
 
 project(workspaceName)
 kind("ConsoleApp")
+language("C")
 location("../")
 targetdir("../bin/%{cfg.buildcfg}")
 
