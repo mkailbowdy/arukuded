@@ -97,11 +97,11 @@ void sortByY(tmx_map *map, tmx_layer *objectsLayer, Player *player, Texture2D pl
 
     // Fill array
     object = objectsLayer->content.objgr->head;
-    int j = 0;
+    int i = 0;
 
     while (object != NULL) {
-        collection[j] = object;
-        j++;
+        collection[i] = object;
+        i++;
         object = object->next;
     }
 
@@ -110,9 +110,8 @@ void sortByY(tmx_map *map, tmx_layer *objectsLayer, Player *player, Texture2D pl
 
     bool playerDrawn = false;
     float playerY = player->position.y + player->spriteSize.y;
-
-    for (int i = 0; i < count; i++) {
-        object = collection[i];
+    for (int j = 0; j < count; j++) {
+        object = collection[j];
 
         // Draw player when we reach an object below him
         if (!playerDrawn && playerY < object->y) {
@@ -282,7 +281,6 @@ int main(int argc, char *argv[]) {
             layer = layer->next;
         }
 
-        // 2. Draw Entities (Player & Zombie)
         // 2. Draw buildings + player in Y order
         sortByY(map, objectsLayer, &player, playerWalk, playerWalkFrameRec);
 
