@@ -2,6 +2,7 @@
 #include "raymath.h"
 #include "resource_dir.h" // utility header for SearchAndSetResourceDir
 #include "string.h"
+#include <stdio.h>
 #include <tmx.h>
 
 #define RAYLIB_TMX_IMPLEMENTATION
@@ -27,6 +28,11 @@ typedef struct Zombie {
     Rectangle bounds;
     Direction direction;
 } Zombie;
+typedef struct Bullet {
+    Vector2 position;
+    Vector2 speed;
+    float radius;
+} Bullet;
 
 //----------------------------------------------------------------------------------
 // Helper Functions
@@ -194,6 +200,12 @@ int main(int argc, char *argv[]) {
     tmx_layer *collisionLayer = tmx_find_layer_by_name(map, "Collisions");
     tmx_layer *objectsLayer = tmx_find_layer_by_name(map, "Buildings");
 
+    int bulletCount = 5;
+    Bullet **bullets = calloc(bulletCount, sizeof(Bullet *));
+    if (bullets == NULL) {
+        printf("Memory allocation failed.");
+        return 1;
+    }
     //----------------------------------------------------------------------------------
     // Gameplay Loop
     //----------------------------------------------------------------------------------
@@ -266,6 +278,32 @@ int main(int argc, char *argv[]) {
 
         wildZombie.position.x += wildZombie.speed.x * deltaTime;
 
+        if (IsKeyPressed(KEY_A)) {
+            Bullet bullet = {0};
+            bullet.position = player.position;
+            bullet.radius = 10.0f;
+            bullet.speed = (Vector2){20.0f, 0.0f};
+
+            // Add bullet to bullets array
+            for (int i = 0; i < bulletCount; i++) {
+                if (bullets[i] != NULL) {
+                    printf("count #%d\n", i);
+                    continue;
+                } else {
+                    printf("count #%d\n", i);
+                    bullets[i] = &bullet;
+                    break;
+                }
+            }
+        }
+        int count = 0;
+        while (count < bulletCount) {
+            if (bullets[count] == NULL) {
+                break;
+            }
+            bullets[count]->position.x += bullets[count]->speed.x * deltaTime;
+            count++;
+        }
         //----------------------------------------------------------------------------------
         // Draw
         //----------------------------------------------------------------------------------
@@ -279,6 +317,14 @@ int main(int argc, char *argv[]) {
                 DrawTMXLayer(map, layer, position.x, position.y, WHITE, 1.0f);
             }
             layer = layer->next;
+        }
+        count = 0;
+        while (count < bulletCount) {
+            if (bullets[count] == NULL) {
+                break;
+            }
+            DrawCircleV((bullets[count])->position, bullets[count]->radius, RED);
+            count++;
         }
 
         // 2. Draw buildings + player in Y order
@@ -297,7 +343,6 @@ int main(int argc, char *argv[]) {
             }
         }
         DrawRectangleLinesEx(player.bounds, 1.0, GREEN);
-
         EndDrawing();
     }
 
