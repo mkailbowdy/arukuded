@@ -28,15 +28,18 @@ typedef struct Zombie {
     Rectangle bounds;
     Direction direction;
 } Zombie;
+
 typedef struct Bullet {
     Vector2 position;
     Vector2 speed;
     float radius;
+    bool active;
 } Bullet;
 
 //----------------------------------------------------------------------------------
 // Helper Functions
 //----------------------------------------------------------------------------------
+
 void animatePixels(int *framesCounter, int *currentFrame, Rectangle *frameRec, Texture2D spritesheet, int frameCount, int framesSpeed) {
     if (*framesCounter >= (60 / framesSpeed)) {
         *framesCounter = 0;
@@ -48,9 +51,12 @@ void animatePixels(int *framesCounter, int *currentFrame, Rectangle *frameRec, T
 
         frameRec->x = (float)*currentFrame * (float)spritesheet.width / frameCount;
     }
+
     return;
 }
+
 void UpdatePlayerBounds(Player *player) { player->bounds = (Rectangle){player->position.x + 7, player->position.y + 52, 14, 12}; }
+
 bool PlayerCollides(Rectangle bounds, tmx_layer *collisionLayer) {
     if (collisionLayer == NULL || collisionLayer->type != L_OBJGR) {
         return false;
@@ -72,6 +78,7 @@ bool PlayerCollides(Rectangle bounds, tmx_layer *collisionLayer) {
 
     return false;
 }
+
 int compare(const void *a, const void *b) {
     const tmx_object *objA = *(const tmx_object **)a;
     const tmx_object *objB = *(const tmx_object **)b;
@@ -84,6 +91,7 @@ int compare(const void *a, const void *b) {
 
     return 0;
 }
+
 void sortByY(tmx_map *map, tmx_layer *objectsLayer, Player *player, Texture2D playerWalk, Rectangle playerWalkFrameRec) {
     int count = 0;
 
@@ -115,7 +123,9 @@ void sortByY(tmx_map *map, tmx_layer *objectsLayer, Player *player, Texture2D pl
     qsort(collection, count, sizeof(tmx_object *), compare);
 
     bool playerDrawn = false;
+
     float playerY = player->position.y + player->spriteSize.y;
+
     for (int j = 0; j < count; j++) {
         object = collection[j];
 
@@ -154,89 +164,149 @@ void sortByY(tmx_map *map, tmx_layer *objectsLayer, Player *player, Texture2D pl
 //----------------------------------------------------------------------------------
 
 int main(int argc, char *argv[]) {
+
     //----------------------------------------------------------------------------------
     // Initialization
     //----------------------------------------------------------------------------------
 
     ChangeDirectory(GetDirectoryPath(argv[0]));
+
     SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
+
     SearchAndSetResourceDir("resources");
 
     const int screenWidth = 960;
     const int screenHeight = 640;
+
     InitWindow(screenWidth, screenHeight, "Za Aruku Deddo");
 
+    //----------------------------------------------------------------------------------
+    // Player
+    //----------------------------------------------------------------------------------
+
     Texture2D playerWalk = LoadTexture("Raider_1/Walk.png");
-    float playerFrameWidth = (float)playerWalk.width / 8.0f; // 28
-    float playerFrameHeight = (float)playerWalk.height;      // 67
+
+    float playerFrameWidth = (float)playerWalk.width / 8.0f;
+
+    float playerFrameHeight = (float)playerWalk.height;
+
     Rectangle playerWalkFrameRec = {0.0f, 0.0f, playerFrameWidth, playerFrameHeight};
 
     Player player = {0};
+
     player.position = (Vector2){0.0f, 200.0f};
+
     player.spriteSize = (Vector2){playerFrameWidth, playerFrameHeight};
+
     player.speed = (Vector2){250.0f, 250.0f};
+
     player.bounds = (Rectangle){player.position.x, player.position.y, player.spriteSize.x, player.spriteSize.y};
+
     player.direction = RIGHT;
 
+    //----------------------------------------------------------------------------------
+    // Zombie
+    //----------------------------------------------------------------------------------
+
     Texture2D wildZombieWalk = LoadTexture("wild_zombie/Walk.png");
+
     Rectangle wildZombieWalkFrameRec = {0.0f, 0.0f, (float)wildZombieWalk.width / 10, (float)wildZombieWalk.height};
+
     Zombie wildZombie = {0};
+
     wildZombie.position = (Vector2){0.0f, 400.0f};
+
     wildZombie.size = (Vector2){(float)wildZombieWalk.width / 10.0f, (float)wildZombieWalk.height};
+
     wildZombie.speed = (Vector2){50.0f, 50.0f};
+
     wildZombie.bounds = (Rectangle){wildZombie.position.x, wildZombie.position.y, wildZombie.size.x, wildZombie.size.y};
+
     wildZombie.direction = LEFT;
 
+    //----------------------------------------------------------------------------------
+    // Animation
+    //----------------------------------------------------------------------------------
+
     SetTargetFPS(60);
+
     int playerCurrentFrame = 0;
     int playerFramesCounter = 0;
+
     int wildZombieCurrentFrame = 0;
     int wildZombieFramesCounter = 0;
 
+    //----------------------------------------------------------------------------------
+    // TMX Map
+    //----------------------------------------------------------------------------------
+
     tmx_map *map = LoadTMX(argc > 1 ? argv[1] : "tilemaps/village/level1.tmx");
+
     Vector2 position = {0, 0};
 
     tmx_layer *groundLayer = tmx_find_layer_by_name(map, "Ground");
+
     tmx_layer *collisionLayer = tmx_find_layer_by_name(map, "Collisions");
+
     tmx_layer *objectsLayer = tmx_find_layer_by_name(map, "Buildings");
 
+    //----------------------------------------------------------------------------------
+    // Bullets
+    //----------------------------------------------------------------------------------
+
     int bulletCount = 5;
-    Bullet **bullets = calloc(bulletCount, sizeof(Bullet *));
+
+    Bullet *bullets = calloc(bulletCount, sizeof(Bullet));
+
     if (bullets == NULL) {
-        printf("Memory allocation failed.");
+        printf("Memory allocation failed.\n");
         return 1;
     }
+
     //----------------------------------------------------------------------------------
     // Gameplay Loop
     //----------------------------------------------------------------------------------
+
     while (!WindowShouldClose()) {
 
         //----------------------------------------------------------------------------------
         // Update
         //----------------------------------------------------------------------------------
+
         float deltaTime = GetFrameTime();
+
         playerFramesCounter++;
         wildZombieFramesCounter++;
 
+        //----------------------------------------------------------------------------------
+        // Player Movement
+        //----------------------------------------------------------------------------------
+
         Vector2 direction = {0};
+
         if (IsKeyDown(KEY_RIGHT)) {
             direction.x += 1;
             player.direction = RIGHT;
         }
+
         if (IsKeyDown(KEY_LEFT)) {
             direction.x -= 1;
             player.direction = LEFT;
         }
+
         if (IsKeyDown(KEY_UP)) {
             direction.y -= 1;
         }
+
         if (IsKeyDown(KEY_DOWN)) {
             direction.y += 1;
         }
+
         if (direction.x != 0 || direction.y != 0) {
             direction = Vector2Normalize(direction);
 
             float moveX = direction.x * player.speed.x * deltaTime;
+
             float moveY = direction.y * player.speed.y * deltaTime;
 
             // Try X movement
@@ -259,10 +329,17 @@ int main(int argc, char *argv[]) {
 
             UpdatePlayerBounds(&player);
         }
+
+        //----------------------------------------------------------------------------------
+        // Player Direction
+        //----------------------------------------------------------------------------------
+
         switch (player.direction) {
+
         case RIGHT:
             playerWalkFrameRec.width = (float)playerWalk.width / 8;
             break;
+
         case LEFT:
             playerWalkFrameRec.width = -(float)playerWalk.width / 8;
             break;
@@ -270,88 +347,156 @@ int main(int argc, char *argv[]) {
 
         UpdatePlayerBounds(&player);
 
-        if (IsKeyUp(KEY_RIGHT) && IsKeyUp(KEY_UP) && IsKeyUp(KEY_LEFT) && IsKeyUp(KEY_DOWN))
+        //----------------------------------------------------------------------------------
+        // Animation
+        //----------------------------------------------------------------------------------
+
+        if (IsKeyUp(KEY_RIGHT) && IsKeyUp(KEY_UP) && IsKeyUp(KEY_LEFT) && IsKeyUp(KEY_DOWN)) {
             playerCurrentFrame = 0;
+        }
 
         animatePixels(&playerFramesCounter, &playerCurrentFrame, &playerWalkFrameRec, playerWalk, 8, 8);
+
         animatePixels(&wildZombieFramesCounter, &wildZombieCurrentFrame, &wildZombieWalkFrameRec, wildZombieWalk, 10, 10);
+
+        //----------------------------------------------------------------------------------
+        // Zombie Movement
+        //----------------------------------------------------------------------------------
 
         wildZombie.position.x += wildZombie.speed.x * deltaTime;
 
-        if (IsKeyPressed(KEY_A)) {
-            Bullet bullet = {0};
-            bullet.position = player.position;
-            bullet.radius = 10.0f;
-            bullet.speed = (Vector2){20.0f, 0.0f};
+        //----------------------------------------------------------------------------------
+        // Fire Bullet
+        //----------------------------------------------------------------------------------
 
-            // Add bullet to bullets array
+        if (IsKeyPressed(KEY_A)) {
+
+            // Look for the first inactive bullet
             for (int i = 0; i < bulletCount; i++) {
-                if (bullets[i] != NULL) {
-                    printf("count #%d\n", i);
-                    continue;
-                } else {
-                    printf("count #%d\n", i);
-                    bullets[i] = &bullet;
+
+                if (!bullets[i].active) {
+
+                    bullets[i].position = player.position;
+
+                    bullets[i].radius = 10.0f;
+
+                    bullets[i].active = true;
+
+                    if (player.direction == RIGHT) {
+                        bullets[i].speed = (Vector2){400.0f, 0.0f};
+                    } else {
+                        bullets[i].speed = (Vector2){-400.0f, 0.0f};
+                    }
+
+                    // We only want to fire ONE bullet
                     break;
                 }
             }
         }
-        int count = 0;
-        while (count < bulletCount) {
-            if (bullets[count] == NULL) {
-                break;
+
+        //----------------------------------------------------------------------------------
+        // Update Bullets
+        //----------------------------------------------------------------------------------
+
+        for (int i = 0; i < bulletCount; i++) {
+
+            if (bullets[i].active) {
+
+                bullets[i].position.x += bullets[i].speed.x * deltaTime;
+
+                bullets[i].position.y += bullets[i].speed.y * deltaTime;
+
+                // Bullet left the screen
+                if (bullets[i].position.x < 0 || bullets[i].position.x > screenWidth || bullets[i].position.y < 0 ||
+                    bullets[i].position.y > screenHeight) {
+                    bullets[i].active = false;
+                }
             }
-            bullets[count]->position.x += bullets[count]->speed.x * deltaTime;
-            count++;
         }
+
         //----------------------------------------------------------------------------------
         // Draw
         //----------------------------------------------------------------------------------
+
         BeginDrawing();
+
         ClearBackground(RAYWHITE);
 
-        // 1. Draw all map layers (tiles, building objects, images) except "Collisions"
+        //----------------------------------------------------------------------------------
+        // Draw Map
+        //----------------------------------------------------------------------------------
+
+        // Draw all map layers except
+        // "Collisions" and "Buildings"
+
         tmx_layer *layer = map->ly_head;
+
         while (layer != NULL) {
+
             if (layer->visible && strcmp(layer->name, "Collisions") != 0 && strcmp(layer->name, "Buildings") != 0) {
                 DrawTMXLayer(map, layer, position.x, position.y, WHITE, 1.0f);
             }
+
             layer = layer->next;
         }
-        count = 0;
-        while (count < bulletCount) {
-            if (bullets[count] == NULL) {
-                break;
+
+        //----------------------------------------------------------------------------------
+        // Draw Bullets
+        //----------------------------------------------------------------------------------
+
+        for (int i = 0; i < bulletCount; i++) {
+
+            if (bullets[i].active) {
+
+                DrawCircleV(bullets[i].position, bullets[i].radius, RED);
             }
-            DrawCircleV((bullets[count])->position, bullets[count]->radius, RED);
-            count++;
         }
 
-        // 2. Draw buildings + player in Y order
+        //----------------------------------------------------------------------------------
+        // Draw Buildings + Player
+        //----------------------------------------------------------------------------------
+
         sortByY(map, objectsLayer, &player, playerWalk, playerWalkFrameRec);
 
-        // Zombie
+        //----------------------------------------------------------------------------------
+        // Draw Zombie
+        //----------------------------------------------------------------------------------
+
         DrawTextureRec(wildZombieWalk, wildZombieWalkFrameRec, wildZombie.position, WHITE);
-        // 3. Debug collision bounds (RED)
+
+        //----------------------------------------------------------------------------------
+        // Debug Collision Bounds
+        //----------------------------------------------------------------------------------
+
         if (collisionLayer != NULL && collisionLayer->type == L_OBJGR) {
             tmx_object *obj = collisionLayer->content.objgr->head;
+
             while (obj != NULL) {
+
                 if (obj->obj_type == OT_SQUARE) {
                     DrawRectangleLines(obj->x, obj->y, obj->width, obj->height, RED);
                 }
+
                 obj = obj->next;
             }
         }
+
         DrawRectangleLinesEx(player.bounds, 1.0, GREEN);
+
         EndDrawing();
     }
 
     //----------------------------------------------------------------------------------
-    // Cleaup
+    // Cleanup
     //----------------------------------------------------------------------------------
+
+    free(bullets);
+
     UnloadTexture(playerWalk);
     UnloadTexture(wildZombieWalk);
     UnloadTMX(map);
+
     CloseWindow();
+
     return 0;
 }
