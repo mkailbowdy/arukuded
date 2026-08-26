@@ -362,13 +362,13 @@ int main(int argc, char *argv[]) {
 
         animatePixels(&playerFramesCounter, &playerCurrentFrame, &playerWalkFrameRec, playerWalk, 8, 8);
 
-        animatePixels(&wildZombieFramesCounter, &wildZombieCurrentFrame, &wildZombieWalkFrameRec, wildZombieWalk, 10, 10);
-
         //----------------------------------------------------------------------------------
         // Zombie Movement
         //----------------------------------------------------------------------------------
         if (wildZombie.active)
-            wildZombie.position.x += wildZombie.speed.x * deltaTime;
+            animatePixels(&wildZombieFramesCounter, &wildZombieCurrentFrame, &wildZombieWalkFrameRec, wildZombieWalk, 10, 10);
+
+        wildZombie.position.x += wildZombie.speed.x * deltaTime;
         UpdateZombieBounds(&wildZombie);
 
         //----------------------------------------------------------------------------------
@@ -493,7 +493,7 @@ int main(int argc, char *argv[]) {
         }
 
         DrawRectangleLinesEx(player.bounds, 1.0, GREEN);
-        DrawRectangleLinesEx(wildZombie.bounds, 1.0, RED);
+        DrawRectangleLinesEx(wildZombie.bounds, 1.0, BLUE);
 
         EndDrawing();
     }
