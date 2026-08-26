@@ -232,6 +232,11 @@ int main(int argc, char *argv[]) {
     //----------------------------------------------------------------------------------
     // Animation
     //----------------------------------------------------------------------------------
+    Camera2D camera = {0};
+    camera.target = (Vector2){player.position.x + 20.0f, player.position.y + 20.0f};
+    camera.offset = (Vector2){screenWidth / 2.0f, screenHeight / 2.0f};
+    camera.rotation = 0.0f;
+    camera.zoom = 1.0f;
 
     SetTargetFPS(60);
 
@@ -351,6 +356,7 @@ int main(int argc, char *argv[]) {
         }
 
         UpdatePlayerBounds(&player);
+        camera.target = (Vector2){player.position.x + 20, player.position.y + 20};
 
         //----------------------------------------------------------------------------------
         // Animation
@@ -434,6 +440,7 @@ int main(int argc, char *argv[]) {
         BeginDrawing();
 
         ClearBackground(RAYWHITE);
+        BeginMode2D(camera);
 
         //----------------------------------------------------------------------------------
         // Draw Map
@@ -494,6 +501,7 @@ int main(int argc, char *argv[]) {
 
         DrawRectangleLinesEx(player.bounds, 1.0, GREEN);
         DrawRectangleLinesEx(wildZombie.bounds, 1.0, BLUE);
+        EndMode2D();
 
         EndDrawing();
     }
