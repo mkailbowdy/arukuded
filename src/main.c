@@ -27,6 +27,7 @@ typedef struct Zombie {
     Vector2 speed;
     Rectangle bounds;
     Direction direction;
+    bool active;
 } Zombie;
 
 typedef struct Bullet {
@@ -56,6 +57,9 @@ void animatePixels(int *framesCounter, int *currentFrame, Rectangle *frameRec, T
 }
 
 void UpdatePlayerBounds(Player *player) { player->bounds = (Rectangle){player->position.x + 7, player->position.y + 52, 14, 12}; }
+void UpdateZombieBounds(Zombie *zombie) {
+    zombie->bounds = (Rectangle){zombie->position.x, zombie->position.y, zombie->size.x, zombie->size.y};
+}
 
 bool PlayerCollides(Rectangle bounds, tmx_layer *collisionLayer) {
     if (collisionLayer == NULL || collisionLayer->type != L_OBJGR) {
@@ -223,6 +227,7 @@ int main(int argc, char *argv[]) {
     wildZombie.bounds = (Rectangle){wildZombie.position.x, wildZombie.position.y, wildZombie.size.x, wildZombie.size.y};
 
     wildZombie.direction = LEFT;
+    wildZombie.active = true;
 
     //----------------------------------------------------------------------------------
     // Animation
@@ -362,8 +367,9 @@ int main(int argc, char *argv[]) {
         //----------------------------------------------------------------------------------
         // Zombie Movement
         //----------------------------------------------------------------------------------
-
-        wildZombie.position.x += wildZombie.speed.x * deltaTime;
+        if (wildZombie.active)
+            wildZombie.position.x += wildZombie.speed.x * deltaTime;
+        UpdateZombieBounds(&wildZombie);
 
         //----------------------------------------------------------------------------------
         // Fire Bullet
@@ -409,6 +415,13 @@ int main(int argc, char *argv[]) {
                 // Bullet left the screen
                 if (bullets[i].position.x < 0 || bullets[i].position.x > screenWidth || bullets[i].position.y < 0 ||
                     bullets[i].position.y > screenHeight) {
+                    bullets[i].active = false;
+                }
+
+                // Bullet colides with zombie
+                if (CheckCollisionCircleRec(bullets[i].position, bullets[i].radius, wildZombie.bounds)) {
+                    wildZombie.speed = (Vector2){0.0f, 0.0f};
+                    wildZombie.active = false;
                     bullets[i].active = false;
                 }
             }
@@ -461,9 +474,7 @@ int main(int argc, char *argv[]) {
         //----------------------------------------------------------------------------------
         // Draw Zombie
         //----------------------------------------------------------------------------------
-
         DrawTextureRec(wildZombieWalk, wildZombieWalkFrameRec, wildZombie.position, WHITE);
-
         //----------------------------------------------------------------------------------
         // Debug Collision Bounds
         //----------------------------------------------------------------------------------
@@ -482,6 +493,7 @@ int main(int argc, char *argv[]) {
         }
 
         DrawRectangleLinesEx(player.bounds, 1.0, GREEN);
+        DrawRectangleLinesEx(wildZombie.bounds, 1.0, RED);
 
         EndDrawing();
     }
